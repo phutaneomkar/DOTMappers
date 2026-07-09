@@ -16,20 +16,34 @@ $(document).ready(function () {
 const mouseTrail = [];
 window.addEventListener('mousemove', function (e) {
   mouseTrail.push({ x: e.clientX, y: e.clientY, t: performance.now(), el: e.target });
+  if (mouseTrail.length > 100) {
+    mouseTrail.shift(); // Keep only the last 100 entries
+  }
 });
 
 // --- BUG: a resize handler that is re-registered on every call to
 // initGallery() instead of once. Every window resize therefore adds
 // ANOTHER listener on top of all previous ones, so work done per-resize
 // grows over the life of the page (also a leak).
-function initGallery() {
-  window.addEventListener('resize', function () {
-    document.querySelectorAll('.product-card').forEach(function (card) {
-      // no-op-ish work, but multiplied by (leaked listener count) it adds up
-      card.style.transform = 'translateZ(0)';
-    });
+// function initGallery() {
+//   window.addEventListener('resize', function () {
+//     document.querySelectorAll('.product-card').forEach(function (card) {
+//       // no-op-ish work, but multiplied by (leaked listener count) it adds up
+//       card.style.transform = 'translateZ(0)';
+//     });
+//   });
+// }
+function handleResize() {
+  document.querySelectorAll('.product-card').forEach(function (card) {
+    // no-op-ish work, but multiplied by (leaked listener count) it adds up
+    card.style.transform = 'translateZ(0)';
   });
 }
+function initGallery() {
+  window.removeEventListener('resize', handleResize); // Remove previous listener to prevent leaks
+  window.addEventListener('resize', handleResize);
+}
+
 initGallery();
 document.addEventListener('DOMContentLoaded', initGallery); // called again -> compounds the leak
 
@@ -37,40 +51,90 @@ document.addEventListener('DOMContentLoaded', initGallery); // called again -> c
 // (offsetHeight) and then immediately write a style, interleaved, forcing
 // the browser to recalculate layout on every single iteration instead of
 // batching all reads then all writes.
+
+
+// function equalizeCardHeights() {
+//   const cards = document.querySelectorAll('.product-card');
+//   cards.forEach(function (card) {
+//     const h = card.offsetHeight;           // READ (forces layout)
+//     card.style.minHeight = h + 2 + 'px';   // WRITE
+//     const h2 = card.offsetHeight;          // READ again (forces layout again)
+//     card.querySelector('.info').style.paddingTop = (h2 % 5) + 'px'; // WRITE
+//   });
+// }
+// window.addEventListener('scroll', equalizeCardHeights); // no throttling/debouncing at all
+
+// // --- BUG: blocking synchronous XHR on the main thread to fetch "reviews".
+// // This freezes rendering/input until the (artificially slow) request
+// // completes. Should be an async fetch().
+// function loadReviewsSync() {
+//   const xhr = new XMLHttpRequest();
+//   xhr.open('GET', 'data/reviews.json', false); // false = synchronous
+//   xhr.send(null);
+//   return JSON.parse(xhr.responseText);
+// }
+
 function equalizeCardHeights() {
   const cards = document.querySelectorAll('.product-card');
-  cards.forEach(function (card) {
-    const h = card.offsetHeight;           // READ (forces layout)
-    card.style.minHeight = h + 2 + 'px';   // WRITE
-    const h2 = card.offsetHeight;          // READ again (forces layout again)
-    card.querySelector('.info').style.paddingTop = (h2 % 5) + 'px'; // WRITE
-  });
-}
-window.addEventListener('scroll', equalizeCardHeights); // no throttling/debouncing at all
+ if(cards.length=== 0) return;  // WRITE
+  const heights = [];
+  // READ (forces layout)
+  for (let i = 0; i < cards.length; i++) {
+    heights.push(cards[i].offsetHeight); // READ (forces layout)
+  }
+//  WRITE
+  for (let i = 0; i < cards.length; i++) {
+    const card = cards[i];
+    const h = heights[i];
+    card.style.minHeight = h + 2 + 'px';
 
-// --- BUG: blocking synchronous XHR on the main thread to fetch "reviews".
-// This freezes rendering/input until the (artificially slow) request
-// completes. Should be an async fetch().
-function loadReviewsSync() {
-  const xhr = new XMLHttpRequest();
-  xhr.open('GET', 'data/reviews.json', false); // false = synchronous
-  xhr.send(null);
-  return JSON.parse(xhr.responseText);
-}
+    const h2 = h+2; // Use the cached height instead of reading offsetHeight again
+    card.querySelector('.info').style.paddingTop = (h2 % 5) + 'px'; // WRITE
+  }
+  }
+  let scollTimeout;
+  window.addEventListener('scroll', function () {
+    if (!scrollTimeout) {
+      scrollTimeout = requestAnimationFrame(function () {
+        equalizeCardHeights();
+        scrollTimeout = null;
+      });
+    }
+    
+  });
+
 
 // --- BUG: renders thousands of DOM nodes in one go with no pagination
 // or virtualization, and does it with wasteful innerHTML += in a loop
 // (which re-parses the growing string every iteration).
-function renderReviews() {
-  const reviews = loadReviewsSync();
+// function renderReviews() {
+//   const reviews = loadReviewsSync();
+//   const list = document.getElementById('review-list');
+//   let html = '';
+//   for (let i = 0; i < reviews.length; i++) {
+//     // innerHTML += re-serializes and re-parses the ENTIRE list every pass
+//     html += '<div class="review-item"><strong>' + reviews[i].name +
+//       '</strong> <span class="stars">' + '★'.repeat(reviews[i].rating) +
+//       '</span><p>' + reviews[i].text + '</p></div>';
+//     list.innerHTML = html;
+//   }
+// }
+
+async function renderReviews() {
   const list = document.getElementById('review-list');
-  let html = '';
-  for (let i = 0; i < reviews.length; i++) {
-    // innerHTML += re-serializes and re-parses the ENTIRE list every pass
-    html += '<div class="review-item"><strong>' + reviews[i].name +
-      '</strong> <span class="stars">' + '★'.repeat(reviews[i].rating) +
-      '</span><p>' + reviews[i].text + '</p></div>';
+  if (!list) return; // Guard against missing element
+  try{
+    const response = await fetch('data/reviews.json');
+    const reviews = await response.json();
+    let html = '';
+    for (let i = 0; i < reviews.length; i++) {
+      html += '<div class="review-item"><strong>' + reviews[i].name +
+        '</strong> <span class="stars">' + '★'.repeat(reviews[i].rating) +
+        '</span><p>' + reviews[i].text + '</p></div>';
+    }
     list.innerHTML = html;
+  } catch (error) {
+    console.error('Error loading reviews:', error);
   }
 }
 
@@ -81,30 +145,70 @@ function renderReviews() {
 // backgrounded, and isn't synced to the display's refresh rate).
 function startParticles() {
   const canvas = document.getElementById('particle-canvas');
+  if (!canvas) return; // Guard against missing element
   const ctx = canvas.getContext('2d');
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
+  // canvas.width = window.innerWidth;
+  // canvas.height = window.innerHeight;
 
-  setInterval(function () {
-    // Recreated from scratch every tick — unnecessary allocation churn.
-    const particles = [];
-    for (let i = 0; i < 400; i++) {
-      particles.push({
-        x: Math.random() * canvas.width,
-        y: Math.random() * canvas.height,
-        r: Math.random() * 3 + 1,
-      });
-    }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(217,123,63,0.6)';
-    particles.forEach(function (p) {
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fill();
+  let width = canvas.width = window.innerWidth;
+  let height = canvas.height = window.innerHeight;
+
+  // setInterval(function () {
+  //   // Recreated from scratch every tick — unnecessary allocation churn.
+  //   const particles = [];
+  //   for (let i = 0; i < 400; i++) {
+  //     particles.push({
+  //       x: Math.random() * canvas.width,
+  //       y: Math.random() * canvas.height,
+  //       r: Math.random() * 3 + 1,
+  //     });
+  //   }
+  //   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  //   ctx.fillStyle = 'rgba(217,123,63,0.6)';
+  //   particles.forEach(function (p) {
+  //     ctx.beginPath();
+  //     ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+  //     ctx.fill();
+  //   });
+  // }, 16); // ~60 times/sec via setInterval instead of requestAnimationFrame
+
+  window.addEventListener('resize', function () {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+  });
+  const particleCount = 200;
+  const particles = [];
+  for (let i = 0; i < particleCount; i++) {
+    particles.push({
+      x: Math.random() * width,
+      y: Math.random() * height,
+      r: Math.random() * 3 + 1,
+      vx: (Math.random() - 0.5) * 0.5,
+      vy: (Math.random() - 0.5) * 0.5,
     });
-  }, 16); // ~60 times/sec via setInterval instead of requestAnimationFrame
+  }
+ function tick() {
+  if(document.hidden) {
+    requestAnimationFrame(tick);
+    return; // Skip rendering when tab is hidden
+  }
+  ctx.clearRect(0, 0, width, height);
+  ctx.fillStyle = 'rgba(217,123,63,0.6)';
+  ctx.beginPath();
+  for (let i = 0; i < particleCount; i++) {
+    const p = particles[i];
+    p.x += p.vx;
+    p.y += p.vy;
+    if (p.x < 0 || p.x > width) p.vx *= -1;
+    if (p.y < 0 || p.y > height) p.vy *= -1;
+    ctx.moveTo(p.x, p.y);
+    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+  }
+  ctx.fill();
+  requestAnimationFrame(tick);
 }
-
+requestAnimationFrame(tick);
+}
 // --- Lightweight, honest performance HUD so you can SEE the impact of
 // the bugs above (and confirm improvement after fixing them). This part
 // is intentionally fine — don't "fix" the HUD itself, it's the ruler,

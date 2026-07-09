@@ -39,9 +39,14 @@ function openQuickView(card) {
   // Open/close a few times and every past overlay's listener is still
   // live, still running its full logic on every future click anywhere
   // on the page.
-  document.addEventListener('click', function outsideClickHandler(e) {
+  // document.addEventListener('click', function outsideClickHandler(e) {
+  //   if (e.target === overlay) {
+  //     closeQuickView(overlay);
+  //   }
+  // });
+  overlay.addEventListener('click', function (e) {
     if (e.target === overlay) {
-      closeQuickView(overlay);
+      closeQuickView(overlay, name, price);
     }
   });
 
@@ -50,16 +55,25 @@ function openQuickView(card) {
   });
 }
 
-function closeQuickView(overlay) {
+function closeQuickView(overlay,name,price) {
   overlay.remove(); // removed from the DOM...
-  closedModalHistory.push(overlay); // ...but retained here forever
+  // closedModalHistory.push(overlay); // ...but retained here forever
+  closedModalHistory.push({ name: name, price: price, closedAt: new Date() }); // Store only relevant data, not the DOM node
+  if (closedModalHistory.length > 50) {
+    closedModalHistory.shift(); // Keep only the last 10 entries
+  }
+}
+function handleCardClick(e) {
+  openQuickView(e);
 }
 
 document.addEventListener('DOMContentLoaded', function () {
   document.querySelectorAll('.product-card').forEach(function (card) {
     card.style.cursor = 'pointer';
-    card.addEventListener('click', function () {
-      openQuickView(card);
-    });
+    // card.addEventListener('click', function () {
+    //   openQuickView(card);
+    // });
+    card.removeEventListener('click', handleCardClick);
+    card.addEventListener('click',handleCardClick)
   });
 });

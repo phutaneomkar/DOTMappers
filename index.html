@@ -6,7 +6,7 @@
   <title>TrailGear Co. — Outdoor Gear for Every Trail</title>
 
   <link rel="stylesheet" href="css/main.css">
-  <link rel="stylesheet" href="css/fonts.css">
+  <!-- <link rel="stylesheet" href="css/fonts.css"> -->
 
   <!-- "Just in case" legacy support check. -->
   <script>
@@ -15,27 +15,27 @@
     // it) means this is unconditionally true, so the ~165KB legacy
     // polyfill bundle is downloaded and executed in every browser,
     // modern or not. document.write() here also blocks the parser.
-    if (!window.Promise || true) {
+    if (!window.Promise ) {
       document.write('<script src="js/vendor/legacy-polyfill.js"><\/script>');
     }
   </script>
 
   <!-- BUG: jQuery included TWICE under different filenames (same bytes) -->
   <script src="js/vendor/jquery-3.6.0.min.js"></script>
-  <script src="js/vendor/jquery-3.6.0.duplicate.min.js"></script>
+  <!-- <script src="js/vendor/jquery-3.6.0.duplicate.min.js"></script> -->
 
   <!-- BUG: heavy libraries loaded on every page even though almost
        nothing on this page actually uses them -->
-  <script src="js/vendor/moment.min.js"></script>
-  <script src="js/vendor/lodash.min.js"></script>
+  <!-- <script src="js/vendor/moment.min.js"></script>
+  <script src="js/vendor/lodash.min.js"></script> -->
 </head>
 <body>
 
   <!-- "Font preloading" that actually forces all 6 weights to download,
        not just the 2 the page ever displays. See css/fonts.css. -->
-  <div class="font-preload" aria-hidden="true">
+  <!-- <div class="font-preload" aria-hidden="true">
     <span>Aa</span><span>Aa</span><span>Aa</span><span>Aa</span>
-  </div>
+  </div> -->
 
 
   <canvas id="particle-canvas"></canvas>

@@ -5,7 +5,7 @@
 /* Blocking @import pulls in a full unused "kitchen sink" framework
    AFTER the browser has already started parsing this file — this
    delays first paint until the whole chain resolves. */
-@import url('vendor-framework.css');
+/* @import url('vendor-framework.css'); */
 
 :root {
   --brand-dark: #16241f;
@@ -27,10 +27,12 @@
      applied this broadly it does the opposite: extra GPU memory,
      extra paint cost, and janky transitions on things that were never
      meant to animate at all. */
-  transition: all 0.4s ease;
-  will-change: transform, opacity;
+  /* transition: all 0.4s ease;
+  will-change: transform, opacity; */
 }
-
+a, button, .cta{
+  transition: background-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
+}
 body {
   font-family: 'TrailSans', 'Inter', 'Helvetica Neue', Arial, sans-serif;
   font-weight: 400;
